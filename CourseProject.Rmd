@@ -80,7 +80,7 @@ str(trainClasse)
 dim(trainClasse)
 ```
 Now we have 19,622 observations and 53 variables.
-```
+
 ##C. Clean Testing Set
 First find all columns with names for the relevant variables. This uses the same methodology as was used for the training set.
 ```{r}
@@ -151,7 +151,7 @@ print(modFit2$finalModel)
 print(modFit2)
 ```
 
-Which variables are important predictors? The variables roll_belt, pitch_forearm, yaw_belt, pitch_belt, and magnet_dumbbell_z are the five most important predictors.
+Which variables are important predictors? The variables roll_belt, pitch_forearm, yaw_belt, pitch_belt, and magnet_dumbbell_y are the five most important predictors.
 ```{r}
 varImp(modFit2)
 plot(modFit2)
@@ -165,7 +165,7 @@ confusionMatrix(myTesting$Classe,classepredict2)
 
 How does the accuracy look for the test set? Accuracy is .992, which is far better than the decision tree model using rpart. If accuracy is so high, could we be overfitting? Out of sample error is only .008.
 
-##C. Model 3: Boosting with gbm method with repeated cross validation.
+##C. Model 3: Boosting with gbm method with five-fold cross validation.
 ```{r}
 set.seed(400)
 modFit3<-train(Classe~.,method="gbm",trControl=trainControl(method="repeatedcv",number=5,repeats=1),data=myTraining,verbose=F)
@@ -173,6 +173,7 @@ print(modFit3)
 varImp(modFit3)
 plot(modFit3,ylim=c(.9,1))
 ```
+The most important variables are: roll_belt, pitch_forearm, yaw_belt, magnet_dumbbell_z, and magnet_dumbbell_y. These are similar to the variables identified under the random forest model.
 
 Predict with the Boosting model.
 ```{r}

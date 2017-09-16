@@ -1,0 +1,197 @@
+---
+title: "Machine Learning Course Project: Classifying correctness of doing exercises using monitor data"
+author: "Victoria Carreon"
+date: "September 16, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Executive Summary
+The goal of this assignment is to create a machine learning algorithm to predict the quality of barbell bicep curls using data from accelerometers on the belt, forearm, arm, and dumbbells. There are 5 Classifications: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Training and testing data is provided. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Three machine learning models were tested for this analysis: decision trees using rpart, random forests, and boosting using gbm. For each model, the data is trained on a subset of the original training set, and then tested on a subset of the original training set. Crossvalidation is used for both the random forests and boosting models. The model with the smallest out of sample error rate is random forests. This algorithm is used to predict the classification of the quality of barbell bicep curls on the original testing data set.
+
+#Step 1: Load Packages needed for this project.
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(knitr)
+library(rattle)
+```
+
+#Step 2: Load and Clean Data
+##A. Load Data
+```{r}
+if(!file.exists("data")){
+  dir.create("data")
+}
+fileURL<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(fileURL,destfile="./data/training.csv")
+training <- read.csv(url(fileURL), na.strings=c("NA","#DIV/0!",""))
+fileURL2<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(fileURL2,destfile="./data/testing.csv")
+testing <- read.csv(url(fileURL2), na.strings=c("NA","#DIV/0!",""))
+dim(training)
+dim(testing)
+```
+There are 19622 observations and 160 variables in the training set.
+The testing set has 20 observations and 160 variables.
+
+##B. Clean Training Set
+First find all columns with names for the relevant variables. There are many variables with NAs or zeroes that can be excluded.
+```{r}
+trainingaccel<-grepl("^accel",names(training))
+trainingtotal<-grepl("^total",names(training))
+roll<-grepl("^roll",names(training))
+pitch<-grepl("^pitch",names(training))
+yaw<-grepl("^yaw",names(training))
+magnet<-grepl("^magnet",names(training))
+gyro<-grepl("^gyro",names(training))
+```
+
+Create dataframes with subsets of the data for the relevant variables.
+```{r}
+acceldata<-training[ ,trainingaccel]
+totaldata<-training[,trainingtotal]
+rolldata<-training[ ,roll]
+pitchdata<-training[ ,pitch]
+yawdata<-training[,yaw]
+magnetdata<-training[,magnet]
+gyrodata<-training[,gyro]
+```
+
+Combine all these data frames together and include column 160, which is the "classe" we will use as a predictor.
+```{r}
+trainClasse<-cbind(acceldata,rolldata,pitchdata,yawdata,magnetdata,gyrodata,totaldata,training[ ,160])
+```
+Add "Classe" as a name to last column. 
+```{r}
+colnames(trainClasse)[53]<-'Classe'
+str(trainClasse)
+dim(trainClasse)
+```
+Now we have 19,622 observations and 53 variables.
+```
+##C. Clean Testing Set
+First find all columns with names for the relevant variables. This uses the same methodology as was used for the training set.
+```{r}
+testingaccel<-grepl("^accel",names(testing))
+testingtotal<-grepl("^total",names(testing))
+troll<-grepl("^roll",names(testing))
+tpitch<-grepl("^pitch",names(testing))
+tyaw<-grepl("^yaw",names(testing))
+tmagnet<-grepl("^magnet",names(testing))
+tgyro<-grepl("^gyro",names(testing))
+```
+
+Create dataframes with subsets of the data for the relevant variables.
+```{r}
+tacceldata<-testing[ ,testingaccel]
+ttotaldata<-testing[,testingtotal]
+trolldata<-testing[ ,troll]
+tpitchdata<-testing[,tpitch]
+tyawdata<-testing[,tyaw]
+tmagnetdata<-testing[,tmagnet]
+tgyrodata<-testing[,tgyro]
+```
+
+Combine all these data frames together and include column 160, which is the "problem ID" we will use as a predictor.
+```{r}
+testClasse<-cbind(tacceldata,trolldata,tpitchdata,tyawdata,tmagnetdata,tgyrodata,ttotaldata,testing[ ,160])
+```
+
+Add "Problem ID" as a name to last column. 
+```{r}
+colnames(testClasse)[53]<-'problem.id'
+dim(testClasse)
+```
+Now we have 20 observations and 53 variables.
+
+#Step 3: Set up new training and test sets to build a model.
+The original training set needs to be subsetted into a training and testing set to buid a model. The original testing set will be used later as a validation set to see if the chosen model correctly predicts the classification.
+```{r}
+set.seed(400)
+inTrain <- createDataPartition(training$classe, p=0.6, list=FALSE)
+myTraining <- trainClasse[inTrain, ]
+myTesting <- trainClasse[-inTrain, ]
+dim(myTraining); dim(myTesting)
+```
+
+#Step 4: Try different machine learning models
+##A. Model 1: Decision trees using "rpart"
+Create the model and print a decision tree.
+```{r}
+set.seed(400)
+modFit<-train(Classe~.,method="rpart",data=myTraining)
+print(modFit$finalModel)
+fancyRpartPlot(modFit$finalModel,cex=.5, under.cex=1,shadow.offset=0,main="Decision Tree for Classe")
+```
+
+Predict with the rpart model.
+```{r}
+classepredict=predict(modFit,myTesting)
+confusionMatrix(myTesting$Classe,classepredict)
+```
+The accuracy of this model is only .5459. Out of sample error is .4451, which is quite high. This model is most accurate for Class E but is least accurate for Classes C and D. This may be because it is difficult to distinguish between lifting the dumbbell halfway or lowering it halfway.
+
+##B. Model 2: Random Forest with cross validation with 4 folds.
+```{r}
+set.seed(400)
+modFit2<-train(Classe~.,method="rf",trControl=trainControl(method="cv",number=4),data=myTraining)
+print(modFit2$finalModel)
+print(modFit2)
+```
+
+Which variables are important predictors? The variables roll_belt, pitch_forearm, yaw_belt, pitch_belt, and magnet_dumbbell_z are the five most important predictors.
+```{r}
+varImp(modFit2)
+plot(modFit2)
+```
+
+Predict with the Random Forest model.
+```{r}
+classepredict2=predict(modFit2,myTesting)
+confusionMatrix(myTesting$Classe,classepredict2)
+```
+
+How does the accuracy look for the test set? Accuracy is .992, which is far better than the decision tree model using rpart. If accuracy is so high, could we be overfitting? Out of sample error is only .008.
+
+##C. Model 3: Boosting with gbm method with repeated cross validation.
+```{r}
+set.seed(400)
+modFit3<-train(Classe~.,method="gbm",trControl=trainControl(method="repeatedcv",number=5,repeats=1),data=myTraining,verbose=F)
+print(modFit3)
+varImp(modFit3)
+plot(modFit3,ylim=c(.9,1))
+```
+
+Predict with the Boosting model.
+```{r}
+classepredict3=predict(modFit3,myTesting)
+confusionMatrix(myTesting$Classe,classepredict3)
+```
+
+How does accuracy look for the test set? Accuracy is .9605 and the out of sample error rate is .0395. This is very good but it not as good as the Random Forest model.
+
+#Step 5: Choose a model to predict against the original testing set.
+The model with the highest accuracy is Random Forest, so this will be used to create predictions for the original testing data. This data has Problem ID instead of Classe, so the correct classification is not known.
+```{r}
+predictTest<-predict(modFit2,testing)
+predictTest
+```
+
+#Conclusion
+Among the three algorithms tested (rpart, random forests, and gbm), random forests have the highest accuracy rate. This model is used to predict against the original testing data set.
+The high accuracy of the random forest model raises concerns that the data is being overfit to the training data and may not be as good of a predictor against a new set of data.
+
+It is also important to note that the number of subjects in this dataset is small. There are only 4 individuals in the original dataset. The model chosen may reflect the Idiosyncrasies of these inidviduals and may not perform as well on a new set of subjects. This model could be refined by getting a larger sample size that reflects a diverse group of people.
+

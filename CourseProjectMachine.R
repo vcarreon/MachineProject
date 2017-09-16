@@ -1,3 +1,5 @@
+
+
 #Packages Needed
 library(caret)
 library(rpart)
@@ -23,8 +25,6 @@ testing <- read.csv(url(fileURL2), na.strings=c("NA","#DIV/0!",""))
 
 #look at the classe variable- it is a factor with 5 levels
 str(training$classe)
-#What are the dimensions
-dim(trainClasse)
 
 #Data Cleaning
 #first find all columns with names for the relevant variables
@@ -82,10 +82,10 @@ myTesting <- trainClasse[-inTrain, ]
 dim(myTraining); dim(myTesting)
 
 #Model 1: Decision tree with rpart model
-set.seed(400)
-modFit<-train(Classe~.,method="rpart",data=myTraining)
-print(modFit$finalModel)
-fancyRpartPlot(modFit$finalModel,cex=.5, under.cex=1,shadow.offset=0,main="Decision Tree for Classe")
+  set.seed(400)
+  modFit<-train(Classe~.,method="rpart",data=myTraining)
+  print(modFit$finalModel)
+  fancyRpartPlot(modFit$finalModel,cex=.5, under.cex=1,shadow.offset=0,main="Decision Tree for Classe")
 
 #Predict with the rpart model
 classepredict=predict(modFit,myTesting)
